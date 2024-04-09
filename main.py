@@ -7,9 +7,6 @@ import matplotlib.pyplot as plt
 from matplotlib import colors
 import nltk
 import ssl
-nltk.download('punkt')
-nltk.download('stopwords')
-nltk.download('wordnet')
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
@@ -37,10 +34,13 @@ avis = []
 def pretraitement_texte(texte):
     tokens = word_tokenize(texte)
     tokens = [mot for mot in tokens if mot not in string.punctuation]
+    #print(string.punctuation)
     mots_vides = set(stopwords.words('english'))
+    #print(mots_vides)
     tokens = [mot for mot in tokens if mot.lower() not in mots_vides]
     lemmatiseur = WordNetLemmatizer()
     tokens = [lemmatiseur.lemmatize(mot) for mot in tokens]
+    #print(tokens)
     return " ".join(tokens)
 
 def getData(chemin,type_commentaire):
@@ -48,25 +48,26 @@ def getData(chemin,type_commentaire):
         if fichier.endswith(".txt"):
             chemin_fichier = os.path.join(chemin, fichier)
             with open(chemin_fichier, "r", encoding="utf-8") as f:
-                lignes = f.readlines()
-                for ligne in lignes:
-                    donnees.append(ligne.rstrip())  # Supprimer les sauts de ligne à droite
-                    avis.append(type_commentaire)
+                texte_complet = " ".join([ligne.strip() for ligne in f.readlines()])
+                donnees.append(texte_complet)
+                avis.append(type_commentaire)
+
 
 getData("txt_sentoken/neg","neg")
 getData("txt_sentoken/pos","pos")
-
-
-
 data = DataFrame({"commentaire": donnees, "nature_du_commentaire": avis})
+
+# Afficher le nombe de commentaires négatifs et positifs
+print(data['nature_du_commentaire'].value_counts())
+
 # Mélanger le DataFrame
 data = data.sample(frac=1)
 data.reset_index(drop=True, inplace=True)
+
+#Pré-traitement
 data['commentaire'] = data['commentaire'].apply(pretraitement_texte)
-print(data["commentaire"].head())
-#print(len(data))
-#print(data['nature_du_commentaire'].value_counts())
-#print(data.head())
+
+
 
 # X valeur d'apprentissage
 X = data["commentaire"]
@@ -76,7 +77,8 @@ y = data["nature_du_commentaire"]
 
 # entrainement
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3)
-print(X_train.head())
+#print(X_train.head())
+
 
 vectorizer = CountVectorizer(lowercase=True)
 X_train_vectorized = vectorizer.fit_transform(X_train)
@@ -84,25 +86,19 @@ X_train_vectorized = vectorizer.fit_transform(X_train)
 #print(vectorizer.vocabulary_)
 X_test_vectorized = vectorizer.transform(X_test)
 
-'''
-# Récupération du vocabulaire
-vocab = vectorizer.get_feature_names_out()
-for i, row in enumerate(X_train_vectorized.toarray()):
-    print("Document", i+1, ":")
-    for j, count in enumerate(row):
-        if count > 0:
-            print(vocab[j], ":", count)
-'''
 
 #Instancier le modèle SVM
 svm_classifier = SVC(kernel='linear')
 
-#Entraîner le modèle sur les données d'entraînement normalisées
+#Entraîner le modèle sur les données d'entraînement vectorisé
+print("apprentissage")
 svm_classifier.fit(X_train_vectorized, y_train)
+print("fin apprentissage")
 
 
-#Faire des prédictions sur l'ensemble de test normalisé
+#Faire des prédictions sur l'ensemble de test vectorisé
 y_pred = svm_classifier.predict(X_test_vectorized)
+
 '''
 
 # Instancier le classificateur bayésien naïf gaussien
@@ -124,24 +120,5 @@ print("f1_score:", f1)
 print("Accuracy:", accuracy)
 print("Precision:", precision)
 print("confusion_matrix:", confusion_matrix)
-
-'''
-pca = PCA(n_components=2)
-X_train_pca = pca.fit_transform(X_train_vectorized.toarray())
-
-plt.figure(figsize=(10, 8))
-# Plotting our two-features-space
-sns.scatterplot(x=X_train_pca[:, 0],
-                y=X_train_pca[:, 1],
-                hue=y_train,
-                s=8)
-# Constructing a hyperplane using a formula.
-w = svm_classifier.coef_[0]           # w consists of 2 elements
-b = svm_classifier.intercept_[0]      # b consists of 1 element
-x_points = np.linspace(-1, 1)    # generating x-points from -1 to 1
-y_points = -(w[0] / w[1]) * x_points - b / w[1]  # getting corresponding y-points
-# Plotting a red hyperplane
-plt.plot(x_points, y_points, c='r');
-'''
 
 
