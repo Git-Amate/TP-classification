@@ -3,6 +3,7 @@ import re
 from keras import layers
 from keras import losses
 import tensorflow as tf
+from sklearn.naive_bayes import GaussianNB
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
@@ -71,17 +72,17 @@ X_train_vectorized = vectorizer.fit_transform(X_train)
 #print(vectorizer.vocabulary_)
 X_test_vectorized = vectorizer.transform(X_test)
 
-#Instancier le modèle SVM
-svm_classifier = SVC()
+#Instancier le modèle bayes
+naive_bayes = GaussianNB()
 
 #Entraîner le modèle sur les données d'entraînement vectorisé
 print("apprentissage")
-svm_classifier.fit(X_train_vectorized, y_train)
+naive_bayes.fit(X_train_vectorized.toarray(), y_train)
 print("fin apprentissage")
 
 
 #Faire des prédictions sur l'ensemble de test vectorisé
-y_pred = svm_classifier.predict(X_test_vectorized)
+y_pred = naive_bayes.predict(X_test_vectorized.toarray())
 
 f1 = f1_score(y_test, y_pred, pos_label="pos")
 accuracy = accuracy_score(y_test, y_pred)

@@ -2,6 +2,7 @@ import os
 import re
 from keras import layers
 from keras import losses
+from numpy import *
 import tensorflow as tf
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
@@ -44,51 +45,56 @@ def getData(chemin,type_commentaire):
 
 getData("txt_sentoken/neg","neg")
 getData("txt_sentoken/pos","pos")
-#print(donnees[0])
+
 data = DataFrame({"commentaire": donnees, "nature_du_commentaire": avis})
 print(data['nature_du_commentaire'].value_counts())
 # Mélanger le DataFrame
 data = data.sample(frac=1)
 data.reset_index(drop=True, inplace=True)
 data['commentaire'] = data['commentaire'].apply(pretraitement_texte)
-#print(data['commentaire'].head())
-#print(len(data))
-#print(data.head())
+data['nature_du_commentaire'] = data['nature_du_commentaire'].replace({'pos': 1, 'neg': 0})
+
 
 # X valeur d'apprentissage
 X = data["commentaire"]
 
 # y valeur de prédiction
-y = data["nature_du_commentaire"]
+y = data["nature_du_commentaire"].values
 
 # entrainement
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3)
-#print(X_train.head())
 
-vectorizer = CountVectorizer(lowercase=True)
-X_train_vectorized = vectorizer.fit_transform(X_train)
-#print(X_train_vectorized)
-#print(vectorizer.vocabulary_)
-X_test_vectorized = vectorizer.transform(X_test)
+# Paramètres de tokenisation
+vocab_size = 10000
+embedding_dim = 50
+max_length = 150
+trunc_type = 'post'
+padding_type = 'post'
+oov_tok = '<OOV>'
 
-#Instancier le modèle SVM
-svm_classifier = SVC()
+#Tokenisation des phrases
+tokenizer = tf.keras.preprocessing.text.Tokenizer(num_words=vocab_size, oov_token=oov_tok)
+tokenizer.fit_on_texts(X_train)
+word_index = tokenizer.word_index
+sequences_train = tokenizer.texts_to_sequences(X_train)
+sequences_test = tokenizer.texts_to_sequences(X_test)
+padded_train = tf.keras.preprocessing.sequence.pad_sequences(sequences_train, maxlen=max_length, padding=padding_type, truncating=trunc_type)
+padded_test = tf.keras.preprocessing.sequence.pad_sequences(sequences_test, maxlen=max_length, padding=padding_type, truncating=trunc_type)
 
-#Entraîner le modèle sur les données d'entraînement vectorisé
-print("apprentissage")
-svm_classifier.fit(X_train_vectorized, y_train)
-print("fin apprentissage")
+# Création du modèle LSTM bidirectionnel
+model = tf.keras.Sequential([
+    tf.keras.layers.Embedding(vocab_size, embedding_dim),
+    tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64)),
+    tf.keras.layers.Dense(1, activation='sigmoid')
+])
 
+# Compilation du modèle
+model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
 
-#Faire des prédictions sur l'ensemble de test vectorisé
-y_pred = svm_classifier.predict(X_test_vectorized)
+# Entraînement du modèle
+model.fit(padded_train, y_train, epochs=10, validation_data=(padded_test, y_test))
 
-f1 = f1_score(y_test, y_pred, pos_label="pos")
-accuracy = accuracy_score(y_test, y_pred)
-precision = precision_score(y_test, y_pred,  pos_label="pos")
-confusion_matrix = confusion_matrix(y_test,y_pred)
-print("f1_score:", f1)
-print("Accuracy:", accuracy)
-print("Precision:", precision)
-print("confusion_matrix:", confusion_matrix)
+# Evaluation du modèle
+loss, accuracy = model.evaluate(padded_test, y_test)
+print(f'Loss: {loss}, Accuracy: {accuracy}')
 
